@@ -1,3 +1,4 @@
 {
-    "cancel_percentage": 0.5
+    "cancel_percentage": 0.5,
+    "filter_period": 5
 }

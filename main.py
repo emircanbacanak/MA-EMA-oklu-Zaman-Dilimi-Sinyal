@@ -638,42 +638,6 @@ class MAConfigApp(ctk.CTk):
             indicator = SMAIndicator(df["close"], window=period)
             return indicator.sma_indicator()
 
-    def check_signals(self, df, configs, tolerance_data):
-        signals = []
-        tolerance = tolerance_data["tolerance"] / 100
-        control1, control2 = tolerance_data["controls"]
-        dir1, dir2 = tolerance_data["directions"]
-
-        prev_close = df["close"].iloc[-2] if len(df) > 1 else None
-        current_close = df["close"].iloc[-1]
-
-        for config in configs:
-            if config["timeframe"] != "8h":
-                continue
-            ma_type = config["tip"]
-            period = config["periyot"]
-            harf = config["harf"]
-
-            ma_value = self.calculate_ma(df, ma_type, period).iloc[-1]
-            lower_bound = ma_value * (1 - tolerance) if dir1 == "Aşağı" or dir2 == "Aşağı" else ma_value
-            upper_bound = ma_value * (1 + tolerance) if dir1 == "Yukarı" or dir2 == "Yukarı" else ma_value
-
-            if prev_close is not None:
-                if dir1 == "Yukarı" and harf == control1:
-                    if prev_close < ma_value and current_close >= upper_bound:
-                        signals.append(harf)
-                elif dir1 == "Aşağı" and harf == control1:
-                    if prev_close > ma_value and current_close <= lower_bound:
-                        signals.append(harf)
-                if dir2 == "Yukarı" and harf == control2:
-                    if prev_close < ma_value and current_close >= upper_bound:
-                        signals.append(harf)
-                elif dir2 == "Aşağı" and harf == control2:
-                    if prev_close > ma_value and current_close <= lower_bound:
-                        signals.append(harf)
-
-        return signals
-
     def run_bot(self):
         """Bot ana döngüsü - Mum kapanış zamanlarını bekleyerek çalışır"""
         try:
@@ -1209,25 +1173,35 @@ class MAConfigApp(ctk.CTk):
         delete_button.pack(pady=5)
 
     def create_signal_cancel_tab(self):
-        """Sinyal iptal ayarları tab'ını oluştur"""
+        """Sinyal iptal ve filtre ayarları tab'ını oluştur"""
         # Başlık
-        title_label = ctk.CTkLabel(self.cancel_tab, text="Sinyal İptal Ayarları", font=("Arial", 16, "bold"))
+        title_label = ctk.CTkLabel(self.cancel_tab, text="Sinyal İptal & Filtre Ayarları", font=("Arial", 16, "bold"))
         title_label.pack(pady=10)
         
-        # Açıklama
-        desc_label = ctk.CTkLabel(self.cancel_tab, text="Fiyat belirli bir yüzde ilerlediğinde sinyal iptal edilir", font=("Arial", 12))
-        desc_label.pack(pady=5)
-        
-        # İptal yüzdesi ayarı
+        # Sinyal İptal Bölümü
         cancel_frame = ctk.CTkFrame(self.cancel_tab)
         cancel_frame.pack(pady=10, fill="x", padx=10)
+        
+        ctk.CTkLabel(cancel_frame, text="🛑 Sinyal İptal Ayarları", font=("Arial", 14, "bold")).pack(pady=5)
+        ctk.CTkLabel(cancel_frame, text="Fiyat belirli bir yüzde ilerlediğinde sinyal iptal edilir", font=("Arial", 12)).pack(pady=5)
         
         ctk.CTkLabel(cancel_frame, text="Sinyal İptal Yüzdesi (%):").pack(pady=5)
         self.cancel_percentage_entry = ctk.CTkEntry(cancel_frame, placeholder_text="5.0", width=150)
         self.cancel_percentage_entry.pack(pady=5)
         
+        # Filtre Bölümü
+        filter_frame = ctk.CTkFrame(self.cancel_tab)
+        filter_frame.pack(pady=10, fill="x", padx=10)
+        
+        ctk.CTkLabel(filter_frame, text="🔍 Sinyal Filtre Ayarları", font=("Arial", 14, "bold")).pack(pady=5)
+        ctk.CTkLabel(filter_frame, text="MQL5 v5 algoritması için sinyal filtre periyodu", font=("Arial", 12)).pack(pady=5)
+        
+        ctk.CTkLabel(filter_frame, text="Filtre Periyodu (Mum Sayısı):").pack(pady=5)
+        self.filter_period_entry = ctk.CTkEntry(filter_frame, placeholder_text="5", width=150)
+        self.filter_period_entry.pack(pady=5)
+        
         # Kaydet butonu
-        save_cancel_button = ctk.CTkButton(cancel_frame, text="💾 İptal Ayarlarını Kaydet", command=self.save_signal_cancel_config)
+        save_cancel_button = ctk.CTkButton(self.cancel_tab, text="💾 Tüm Ayarları Kaydet", command=self.save_signal_cancel_config)
         save_cancel_button.pack(pady=10)
 
     def create_right_panel(self):
@@ -1373,40 +1347,47 @@ class MAConfigApp(ctk.CTk):
             self.synthetic_symbols = {}
 
     def save_signal_cancel_config(self):
-        """Sinyal iptal ayarlarını kaydet"""
+        """Sinyal iptal ve filtre ayarlarını kaydet"""
         try:
             cancel_percentage = float(self.gui.cancel_percentage_entry.get())
+            filter_period = int(self.gui.filter_period_entry.get())
             
             config = {
-                "cancel_percentage": cancel_percentage
+                "cancel_percentage": cancel_percentage,
+                "filter_period": filter_period
             }
             
             with open(SIGNAL_CANCEL_FILE, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=4, ensure_ascii=False)
                 
             if hasattr(self, 'gui') and hasattr(self.gui, 'cancel_status_label'):
-                self.gui.cancel_status_label.configure(text=f"❌ İptal: %{cancel_percentage}", text_color="green")
-            self.show_info(f"Sinyal iptal ayarları kaydedildi: %{cancel_percentage}")
+                self.gui.cancel_status_label.configure(text=f"❌ İptal: %{cancel_percentage} | 🔍 Filtre: {filter_period}", text_color="green")
+            self.show_info(f"Sinyal iptal ve filtre ayarları kaydedildi: İptal %{cancel_percentage}, Filtre {filter_period}")
             
         except Exception as e:
-            self.show_error(f"Sinyal iptal ayarları kaydetme hatası: {str(e)}")
+            self.show_error(f"Sinyal iptal ve filtre ayarları kaydetme hatası: {str(e)}")
 
     def load_signal_cancel_config(self):
-        """Sinyal iptal ayarlarını yükle"""
+        """Sinyal iptal ve filtre ayarlarını yükle"""
         try:
             if os.path.exists(SIGNAL_CANCEL_FILE):
                 with open(SIGNAL_CANCEL_FILE, "r", encoding="utf-8") as f:
                     config = json.load(f)
                 
                 cancel_percentage = config.get("cancel_percentage", 5.0)
+                filter_period = config.get("filter_period", 5)
+                
                 self.gui.cancel_percentage_entry.delete(0, "end")
                 self.gui.cancel_percentage_entry.insert(0, str(cancel_percentage))
                 
+                self.gui.filter_period_entry.delete(0, "end")
+                self.gui.filter_period_entry.insert(0, str(filter_period))
+                
                 if hasattr(self, 'gui') and hasattr(self.gui, 'cancel_status_label'):
-                    self.gui.cancel_status_label.configure(text=f"❌ İptal: %{cancel_percentage}", text_color="green")
+                    self.gui.cancel_status_label.configure(text=f"❌ İptal: %{cancel_percentage} | 🔍 Filtre: {filter_period}", text_color="green")
                     
         except Exception as e:
-            self.show_error(f"Sinyal iptal ayarları yükleme hatası: {str(e)}")
+            self.show_error(f"Sinyal iptal ve filtre ayarları yükleme hatası: {str(e)}")
 
     def generate_symbols_list(self):
         """Analiz edilecek sembol listesini oluştur"""
@@ -1475,29 +1456,68 @@ class MAConfigApp(ctk.CTk):
             print(f"Sinyal iptal kontrolü hatası: {e}")
             return False
 
-    def check_signals_with_cached_ma(self, df, configs, tolerance_data, signal_timeframe, ma_values_cache):
-        """Yeni sinyal mantığı: mum rengi, MA temas kontrolü ve çoklu MA sinyali"""
+    def check_signals_with_cached_ma(self, df, configs, tolerance_data, signal_timeframe, ma_values_cache, filter_period=None):
+        """
+        MQL5 MABounceSignal_v5 algoritması birebir Python'a çevrilmiş hali:
+        
+        Alış Sinyali Kuralı:
+        1. Test Mumu (bir önceki mum):
+           a) MA'nın üstünde açılır
+           b) Fitiliyle MA'nın altına sarkar (delme)
+           c) Tekrar MA'nın üstünde kapanır (güçlü reddetme)
+        2. Onay Mumu (mevcut mum):
+           a) Bir yükseliş mumudur
+           b) Test mumunun en yüksek seviyesinin üzerinde kapanır (güçlü teyit)
+        3. Filtre Kuralı (YENİ):
+           a) Son 5 mum içinde MA altında kapanış olmamalı
+        
+        Satış Sinyali Kuralı:
+        1. Test Mumu (bir önceki mum):
+           a) MA'nın altında açılır
+           b) Fitiliyle MA'nın üstüne çıkar (delme)
+           c) Tekrar MA'nın altında kapanır (güçlü reddetme)
+        2. Onay Mumu (mevcut mum):
+           a) Bir düşüş mumudur
+           b) Test mumunun en düşük seviyesinin altında kapanır (güçlü teyit)
+        3. Filtre Kuralı (YENİ):
+           a) Son 5 mum içinde MA üstünde kapanış olmamalı
+        """
         signals = []
 
-        if len(df) < 2:
+        # MQL5 v5: inpFilterPeriod + 2 mum gerekli (5 + 2 = 7)
+        if len(df) < 7:
             return signals
 
         # Son iki mumun verilerini al
-        prev_candle = df.iloc[-2]
-        current_candle = df.iloc[-1]
+        test_candle = df.iloc[-2]  # Test Mumu (bir önceki mum)
+        confirm_candle = df.iloc[-1]  # Onay Mumu (mevcut mum)
         
-        # Mum renklerini belirle (yeşil = bullish, kırmızı = bearish)
-        prev_is_green = prev_candle["close"] >= prev_candle["open"]
-        current_is_green = current_candle["close"] >= current_candle["open"]
+        # Test mumu verileri
+        test_open = test_candle["open"]
+        test_high = test_candle["high"]
+        test_low = test_candle["low"]
+        test_close = test_candle["close"]
         
-        # Fiyat değerleri
-        prev_close = prev_candle["close"]
-        current_close = current_candle["close"]
-        current_high = current_candle["high"]
-        current_low = current_candle["low"]
+        # Onay mumu verileri
+        confirm_open = confirm_candle["open"]
+        confirm_close = confirm_candle["close"]
+        
+        # Mum renklerini belirle
+        test_is_green = test_close >= test_open
+        confirm_is_green = confirm_close >= confirm_open
 
-        # Bu mum için temas eden MA'ları bul
-        touching_mas = []
+        # MQL5 v5 Filtre Periyodu - parametre veya config'den al veya varsayılan 5
+        if filter_period is None:
+            filter_period = 5  # Varsayılan değer
+            if hasattr(self, 'gui') and hasattr(self.gui, 'filter_period_entry'):
+                try:
+                    filter_period = int(self.gui.filter_period_entry.get())
+                except:
+                    filter_period = 5  # Hata durumunda varsayılan
+
+        # Bu mum için sinyal veren MA'ları bul
+        buy_signals = []
+        sell_signals = []
         
         for config in configs:
             ma_type = config["tip"]  # MA veya EMA
@@ -1508,215 +1528,165 @@ class MAConfigApp(ctk.CTk):
             # Bu harf için tolerans ayarı var mı?
             harf_tolerance = tolerance_data.get(harf, {})
             
-            # Tolerans ayarı yoksa varsayılan değerler kullan
-            if not harf_tolerance:
-                # Tolerans yoksa sadece orijinal MA değeri ile kontrol et
-                original_ma_value = ma_values_cache.get(ma_calculation_timeframe, {}).get(harf)
-                
-                if original_ma_value is None or pd.isna(original_ma_value):
-                    continue
-                    
-                # Tolerans olmadan sadece orijinal MA değeri ile temas kontrolü
-                touches_ma = (current_low <= original_ma_value <= current_high)
-                
-                if touches_ma:
-                    touching_mas.append({
-                        "harf": harf,
-                        "ma_type": ma_type,
-                        "ma_value": original_ma_value,
-                        "tolerance_ma_value": original_ma_value,
-                        "direction": "Yukarı",  # Varsayılan yukarı
-                        "tolerance": 0,
-                        "period": period,
-                        "ma_calculation_timeframe": ma_calculation_timeframe
-                    })
-                continue
-            
-            # Aktif mi?
-            if not harf_tolerance.get("active", True):
-                continue
-
             # Cache'den MA değerini al
             original_ma_value = ma_values_cache.get(ma_calculation_timeframe, {}).get(harf)
             
             if original_ma_value is None or pd.isna(original_ma_value):
                 continue
                 
-            tolerance = harf_tolerance.get("tolerance", 0) / 100
-            down_enabled = harf_tolerance.get("down", False)
-            up_enabled = harf_tolerance.get("up", False)
-            
-            # Tolerans uygulanmış MA değerlerini hesapla
-            ma_values_to_check = []
-            
-            if down_enabled:
-                if ma_type == "EMA":
-                    down_ma_value = original_ma_value * (1 - tolerance)
-                else:  # MA
-                    down_ma_value = original_ma_value * (1 - tolerance)
-                ma_values_to_check.append(("Aşağı", down_ma_value))
+            # Tolerans ayarı varsa uygula
+            if harf_tolerance and harf_tolerance.get("active", True):
+                tolerance = harf_tolerance.get("tolerance", 0) / 100
+                down_enabled = harf_tolerance.get("down", False)
+                up_enabled = harf_tolerance.get("up", False)
                 
-            if up_enabled:
-                if ma_type == "EMA":
-                    up_ma_value = original_ma_value * (1 + tolerance)
-                else:  # MA
-                    up_ma_value = original_ma_value * (1 + tolerance)
-                ma_values_to_check.append(("Yukarı", up_ma_value))
-
-            # MA temas kontrolü yap
-            for direction, ma_value in ma_values_to_check:
-                # Mum MA'ya dokunuyor mu? (high/low arasında)
-                touches_ma = (current_low <= ma_value <= current_high)
-                
-                if touches_ma:
-                    touching_mas.append({
-                        "harf": harf,
-                        "ma_type": ma_type,
-                        "ma_value": original_ma_value,
-                        "tolerance_ma_value": ma_value,
-                        "direction": direction,
-                        "tolerance": tolerance * 100,
-                        "period": period,
-                        "ma_calculation_timeframe": ma_calculation_timeframe
-                    })
-
-        # Eğer MA'ya temas varsa sinyal kontrolü yap
-        if touching_mas:
-            # Aynı anda temas eden MA'ları grupla
-            buy_signals = []
-            sell_signals = []
-            
-            for ma_info in touching_mas:
-                harf = ma_info["harf"]
-                direction = ma_info["direction"]
-                ma_value = ma_info["tolerance_ma_value"]
-                
-                # Tolerans olmadığında hem alış hem satış sinyali kontrol et
-                if ma_info["tolerance"] == 0:
-                    # Satış sinyali (kırmızı mum, MA'nın altında kapanış)
-                    if not current_is_green and current_close < ma_value:
-                        sell_signals.append({
-                            "harf": harf,
-                            "ma_type": ma_info["ma_type"],
-                            "ma_value": ma_info["ma_value"],
-                            "tolerance_ma_value": ma_value,
-                            "price": current_close,
-                            "signal_timeframe": signal_timeframe,
-                            "ma_calculation_timeframe": ma_info.get("ma_calculation_timeframe", ""),
-                            "direction": "Aşağı",
-                            "tolerance": ma_info["tolerance"],
-                            "candle_color": "kırmızı",
-                            "signal_type": "satış",
-                            "period": ma_info.get("period", ""),
-                            "ma_calculation_timeframe": ma_info.get("ma_calculation_timeframe", "")
-                        })
-                    
-                    # Alış sinyali (yeşil mum, MA'nın üstünde kapanış)
-                    elif current_is_green and current_close > ma_value:
-                        buy_signals.append({
-                            "harf": harf,
-                            "ma_type": ma_info["ma_type"],
-                            "ma_value": ma_info["ma_value"],
-                            "tolerance_ma_value": ma_value,
-                            "price": current_close,
-                            "signal_timeframe": signal_timeframe,
-                            "ma_calculation_timeframe": ma_info.get("ma_calculation_timeframe", ""),
-                            "direction": "Yukarı",
-                            "tolerance": ma_info["tolerance"],
-                            "candle_color": "yeşil",
-                            "signal_type": "alış",
-                            "period": ma_info.get("period", ""),
-                            "ma_calculation_timeframe": ma_info.get("ma_calculation_timeframe", "")
-                        })
+                # Tolerans uygulanmış MA değerlerini hesapla
+                if down_enabled:
+                    ma_value = original_ma_value * (1 - tolerance)
+                elif up_enabled:
+                    ma_value = original_ma_value * (1 + tolerance)
                 else:
-                    # Tolerans varsa normal mantık
-                    # Satış sinyali (kırmızı mum, MA'nın altında kapanış)
-                    if direction == "Aşağı" and not current_is_green:
-                        # Fiyat MA'nın altında kapandı mı?
-                        if current_close < ma_value:
-                            sell_signals.append({
-                                "harf": harf,
-                                "ma_type": ma_info["ma_type"],
-                                "ma_value": ma_info["ma_value"],
-                                "tolerance_ma_value": ma_value,
-                                "price": current_close,
-                                "signal_timeframe": signal_timeframe,
-                                "ma_calculation_timeframe": ma_info.get("ma_calculation_timeframe", ""),
-                                "direction": "Aşağı",
-                                "tolerance": ma_info["tolerance"],
-                                "candle_color": "kırmızı",
-                                "signal_type": "satış",
-                                "period": ma_info.get("period", ""),
-                                "ma_calculation_timeframe": ma_info.get("ma_calculation_timeframe", "")
-                            })
+                    ma_value = original_ma_value
+            else:
+                # Tolerans yoksa orijinal MA değerini kullan
+                ma_value = original_ma_value
+
+            # MQL5 MABounceSignal_v5 algoritması birebir uygulama
+            # Alış Sinyali Koşulları
+            bullish_rejection_candle = (test_open > ma_value and test_low < ma_value and test_close > ma_value)
+            bullish_confirmation_candle = (confirm_close > confirm_open and confirm_close > test_high)
+
+            if bullish_rejection_candle and bullish_confirmation_candle:
+                # --- FİLTRE KONTROLÜ (MQL5 v5 YENİ KURAL) ---
+                is_signal_valid = True
+                # Son 'filter_period' muma bak, MA altında kapanış var mı?
+                for k in range(1, filter_period + 1):
+                    if len(df) <= k + 1:  # +1 çünkü -1 onay mumu, -2 test mumu
+                        continue
                     
-                    # Alış sinyali (yeşil mum, MA'nın üstünde kapanış)
-                    elif direction == "Yukarı" and current_is_green:
-                        # Fiyat MA'nın üstünde kapandı mı?
-                        if current_close > ma_value:
-                            buy_signals.append({
-                                "harf": harf,
-                                "ma_type": ma_info["ma_type"],
-                                "ma_value": ma_info["ma_value"],
-                                "tolerance_ma_value": ma_value,
-                                "price": current_close,
-                                "signal_timeframe": signal_timeframe,
-                                "ma_calculation_timeframe": ma_info.get("ma_calculation_timeframe", ""),
-                                "direction": "Yukarı",
-                                "tolerance": ma_info["tolerance"],
-                                "candle_color": "yeşil",
-                                "signal_type": "alış",
-                                "period": ma_info.get("period", ""),
-                                "ma_calculation_timeframe": ma_info.get("ma_calculation_timeframe", "")
-                            })
+                    # k. mumun kapanış fiyatı (test mumundan önceki mumlar)
+                    candle_close = df.iloc[-(k+2)]["close"]  # -k-2 çünkü -1 onay mumu, -2 test mumu
+                    
+                    # Bu mum için MA değerini hesapla (geçmiş veri kullanarak)
+                    if len(df) >= k + period + 2:  # +2 çünkü onay ve test mumu
+                        df_ma_calc = df.iloc[:-(k+2)]  # k+2 mum öncesine kadar
+                        if len(df_ma_calc) >= period:
+                            ma_value_for_candle = self.calculate_ma(df_ma_calc, ma_type, period).iloc[-1]
+                            
+                            if not pd.isna(ma_value_for_candle) and candle_close < ma_value_for_candle:
+                                is_signal_valid = False  # MA altında kapanış var, sinyal geçersiz
+                                break
+                
+                if is_signal_valid:
+                    buy_signals.append({
+                    "harf": harf,
+                    "ma_type": ma_type,
+                    "ma_value": original_ma_value,
+                    "tolerance_ma_value": ma_value,
+                    "price": confirm_close,
+                    "signal_timeframe": signal_timeframe,
+                    "ma_calculation_timeframe": ma_calculation_timeframe,
+                    "direction": "Yukarı",
+                    "tolerance": harf_tolerance.get("tolerance", 0) if harf_tolerance else 0,
+                    "candle_color": "yeşil",
+                    "signal_type": "alış",
+                    "period": period,
+                    "test_candle_rejection": True,
+                    "confirm_candle_breakout": True
+                })
+
+            # Satış Sinyali Koşulları
+            bearish_rejection_candle = (test_open < ma_value and test_high > ma_value and test_close < ma_value)
+            bearish_confirmation_candle = (confirm_close < confirm_open and confirm_close < test_low)
+
+            if bearish_rejection_candle and bearish_confirmation_candle:
+                # --- FİLTRE KONTROLÜ (MQL5 v5 YENİ KURAL) ---
+                is_signal_valid = True
+                # Son 'filter_period' muma bak, MA üstünde kapanış var mı?
+                for k in range(1, filter_period + 1):
+                    if len(df) <= k + 1:  # +1 çünkü -1 onay mumu, -2 test mumu
+                        continue
+                    
+                    # k. mumun kapanış fiyatı (test mumundan önceki mumlar)
+                    candle_close = df.iloc[-(k+2)]["close"]  # -k-2 çünkü -1 onay mumu, -2 test mumu
+                    
+                    # Bu mum için MA değerini hesapla (geçmiş veri kullanarak)
+                    if len(df) >= k + period + 2:  # +2 çünkü onay ve test mumu
+                        df_ma_calc = df.iloc[:-(k+2)]  # k+2 mum öncesine kadar
+                        if len(df_ma_calc) >= period:
+                            ma_value_for_candle = self.calculate_ma(df_ma_calc, ma_type, period).iloc[-1]
+                            
+                            if not pd.isna(ma_value_for_candle) and candle_close > ma_value_for_candle:
+                                is_signal_valid = False  # MA üstünde kapanış var, sinyal geçersiz
+                                break
+                
+                if is_signal_valid:
+                    sell_signals.append({
+                    "harf": harf,
+                    "ma_type": ma_type,
+                    "ma_value": original_ma_value,
+                    "tolerance_ma_value": ma_value,
+                    "price": confirm_close,
+                    "signal_timeframe": signal_timeframe,
+                    "ma_calculation_timeframe": ma_calculation_timeframe,
+                    "direction": "Aşağı",
+                    "tolerance": harf_tolerance.get("tolerance", 0) if harf_tolerance else 0,
+                    "candle_color": "kırmızı",
+                    "signal_type": "satış",
+                    "period": period,
+                    "test_candle_rejection": True,
+                    "confirm_candle_breakout": True
+                })
             
-            # Alış sinyallerini birleştir
-            if buy_signals:
-                # Harfleri ve periyotları birleştir
-                buy_harfler = []
-                buy_periods = []
-                for s in buy_signals:
-                    harf = s["harf"]
-                    period = s.get("period", "")
-                    ma_type = s.get("ma_type", "MA")
-                    ma_calc_tf = s.get("ma_calculation_timeframe", "")
-                    buy_harfler.append(f"{harf}({ma_type}{period} {ma_calc_tf})")
-                    buy_periods.append(f"{ma_type}{period}")
-                
-                buy_harf_str = ", ".join(buy_harfler)
-                buy_period_str = ", ".join(buy_periods)
-                
-                # İlk sinyalin bilgilerini kullan, harfleri ve periyotları birleştir
-                combined_buy_signal = buy_signals[0].copy()
-                combined_buy_signal["harf"] = buy_harf_str
-                combined_buy_signal["period"] = buy_period_str
-                combined_buy_signal["combined_harfler"] = [s["harf"] for s in buy_signals]
-                combined_buy_signal["signal_count"] = len(buy_signals)
-                signals.append(combined_buy_signal)
+
+        
+        # Alış sinyallerini birleştir
+        if buy_signals:
+            # Harfleri ve periyotları birleştir
+            buy_harfler = []
+            buy_periods = []
+            for s in buy_signals:
+                harf = s["harf"]
+                period = s.get("period", "")
+                ma_type = s.get("ma_type", "MA")
+                ma_calc_tf = s.get("ma_calculation_timeframe", "")
+                buy_harfler.append(f"{harf}({ma_type}{period} {ma_calc_tf})")
+                buy_periods.append(f"{ma_type}{period}")
             
-            # Satış sinyallerini birleştir
-            if sell_signals:
-                # Harfleri ve periyotları birleştir
-                sell_harfler = []
-                sell_periods = []
-                for s in sell_signals:
-                    harf = s["harf"]
-                    period = s.get("period", "")
-                    ma_type = s.get("ma_type", "MA")
-                    ma_calc_tf = s.get("ma_calculation_timeframe", "")
-                    sell_harfler.append(f"{harf}({ma_type}{period} {ma_calc_tf})")
-                    sell_periods.append(f"{ma_type}{period}")
-                
-                sell_harf_str = ", ".join(sell_harfler)
-                sell_period_str = ", ".join(sell_periods)
-                
-                # İlk sinyalin bilgilerini kullan, harfleri ve periyotları birleştir
-                combined_sell_signal = sell_signals[0].copy()
-                combined_sell_signal["harf"] = sell_harf_str
-                combined_sell_signal["period"] = sell_period_str
-                combined_sell_signal["combined_harfler"] = [s["harf"] for s in sell_signals]
-                combined_sell_signal["signal_count"] = len(sell_signals)
-                signals.append(combined_sell_signal)
+            buy_harf_str = ", ".join(buy_harfler)
+            buy_period_str = ", ".join(buy_periods)
+            
+            # İlk sinyalin bilgilerini kullan, harfleri ve periyotları birleştir
+            combined_buy_signal = buy_signals[0].copy()
+            combined_buy_signal["harf"] = buy_harf_str
+            combined_buy_signal["period"] = buy_period_str
+            combined_buy_signal["combined_harfler"] = [s["harf"] for s in buy_signals]
+            combined_buy_signal["signal_count"] = len(buy_signals)
+            signals.append(combined_buy_signal)
+        
+        # Satış sinyallerini birleştir
+        if sell_signals:
+            # Harfleri ve periyotları birleştir
+            sell_harfler = []
+            sell_periods = []
+            for s in sell_signals:
+                harf = s["harf"]
+                period = s.get("period", "")
+                ma_type = s.get("ma_type", "MA")
+                ma_calc_tf = s.get("ma_calculation_timeframe", "")
+                sell_harfler.append(f"{harf}({ma_type}{period} {ma_calc_tf})")
+                sell_periods.append(f"{ma_type}{period}")
+            
+            sell_harf_str = ", ".join(sell_harfler)
+            sell_period_str = ", ".join(sell_periods)
+            
+            # İlk sinyalin bilgilerini kullan, harfleri ve periyotları birleştir
+            combined_sell_signal = sell_signals[0].copy()
+            combined_sell_signal["harf"] = sell_harf_str
+            combined_sell_signal["period"] = sell_period_str
+            combined_sell_signal["combined_harfler"] = [s["harf"] for s in sell_signals]
+            combined_sell_signal["signal_count"] = len(sell_signals)
+            signals.append(combined_sell_signal)
 
         return signals
 
@@ -1885,14 +1855,15 @@ class MAConfigApp(ctk.CTk):
             else:
                 print("ℹ️ Tolerans dosyası bulunamadı, tolerans olmadan devam ediliyor")
             
-            # Sinyal iptal ayarları
-            cancel_data = {"cancel_percentage": 5.0}  # Varsayılan %5
+            # Sinyal iptal ve filtre ayarları
+            cancel_data = {"cancel_percentage": 5.0, "filter_period": 5}  # Varsayılan değerler
             if os.path.exists(SIGNAL_CANCEL_FILE):
                 with open(SIGNAL_CANCEL_FILE, "r", encoding="utf-8") as f:
                     cancel_data = json.load(f)
                 print(f"✅ Sinyal iptal yüzdesi: %{cancel_data.get('cancel_percentage', 5.0)}")
+                print(f"✅ Filtre periyodu: {cancel_data.get('filter_period', 5)} mum")
             else:
-                print("ℹ️ Sinyal iptal dosyası bulunamadı, varsayılan %5 kullanılıyor")
+                print("ℹ️ Sinyal iptal dosyası bulunamadı, varsayılan değerler kullanılıyor")
             
             # 2. Sembol listesini oluştur
             print("\n📈 Sembol listesi oluşturuluyor...")
@@ -1906,20 +1877,11 @@ class MAConfigApp(ctk.CTk):
             backtest_results = {
                 "start_time": datetime.now(),
                 "total_signals": 0,
+                "all_signals": [],
                 "signals_by_timeframe": {},
                 "signals_by_symbol": {},
-                "all_signals": [],
                 "summary": {}
             }
-            
-            # Her zaman dilimi için sonuç yapısı
-            for tf in signal_timeframes:
-                backtest_results["signals_by_timeframe"][tf] = {
-                    "total": 0,
-                    "buy_signals": 0,
-                    "sell_signals": 0,
-                    "signals": []
-                }
             
             # 5. 15 günlük veri için tarih aralığı
             end_date = datetime.now()
@@ -1942,8 +1904,8 @@ class MAConfigApp(ctk.CTk):
                             continue
                         
                         # 15 günlük veriyi filtrele
-                        df_signal['time'] = pd.to_datetime(df_signal['timestamp'])
-                        df_filtered = df_signal[(df_signal['time'] >= start_date) & (df_signal['time'] <= end_date)]
+                        df_signal['timestamp'] = pd.to_datetime(df_signal['timestamp'])
+                        df_filtered = df_signal[(df_signal['timestamp'] >= start_date) & (df_signal['timestamp'] <= end_date)]
                         
                         if len(df_filtered) < 2:
                             continue
@@ -1969,8 +1931,8 @@ class MAConfigApp(ctk.CTk):
                                 
                                 if df_ma is not None and len(df_ma) >= period:
                                     # Sadece bu mum zamanına kadar olan veriyi kullan
-                                    df_ma['time'] = pd.to_datetime(df_ma['timestamp'])
-                                    df_ma_filtered = df_ma[df_ma['time'] <= current_candle['time']]
+                                    df_ma['timestamp'] = pd.to_datetime(df_ma['timestamp'])
+                                    df_ma_filtered = df_ma[df_ma['timestamp'] <= current_candle['timestamp']]
                                     
                                     if len(df_ma_filtered) >= period:
                                         ma_value = self.calculate_ma(df_ma_filtered, ma_type, period).iloc[-1]
@@ -1989,63 +1951,25 @@ class MAConfigApp(ctk.CTk):
                                     configs,
                                     tolerance_data,
                                     signal_timeframe,
-                                    ma_values_cache
+                                    ma_values_cache,
+                                    cancel_data.get("filter_period", 5)
                                 )
                                 
                                 if signals:
                                     for signal in signals:
-                                        # Sinyal detayları
+                                        # Sinyal detayları - sadece gerekli alanlar
                                         signal_info = {
                                             "symbol": symbol,
                                             "signal_timeframe": signal_timeframe,
                                             "ma_calculation_timeframe": signal.get("ma_calculation_timeframe", ""),
                                             "harf": signal["harf"],
-                                            "ma_type": signal["ma_type"],
-                                            "ma_value": signal["ma_value"],
-                                            "tolerance_ma_value": signal["tolerance_ma_value"],
-                                            "price": signal["price"],
-                                            "direction": signal["direction"],
                                             "signal_type": signal.get("signal_type", ""),
-                                            "candle_color": signal.get("candle_color", ""),
-                                            "tolerance": signal["tolerance"],
-                                            "timestamp": current_candle['time'],
-                                            "candle_open": current_candle['open'],
-                                            "candle_high": current_candle['high'],
-                                            "candle_low": current_candle['low'],
-                                            "candle_close": current_candle['close']
+                                            "timestamp": current_candle['timestamp']
                                         }
                                         
-                                        # Sonuçlara ekle
+                                        # Sonuçlara ekle - sadeleştirilmiş
                                         backtest_results["all_signals"].append(signal_info)
                                         backtest_results["total_signals"] += 1
-                                        
-                                        # Zaman dilimi bazında sayım
-                                        tf_results = backtest_results["signals_by_timeframe"][signal_timeframe]
-                                        tf_results["total"] += 1
-                                        tf_results["signals"].append(signal_info)
-                                        
-                                        if signal["direction"] == "Yukarı":
-                                            tf_results["buy_signals"] += 1
-                                        else:
-                                            tf_results["sell_signals"] += 1
-                                        
-                                        # Sembol bazında sayım
-                                        if symbol not in backtest_results["signals_by_symbol"]:
-                                            backtest_results["signals_by_symbol"][symbol] = {
-                                                "total": 0,
-                                                "buy_signals": 0,
-                                                "sell_signals": 0,
-                                                "signals": []
-                                            }
-                                        
-                                        symbol_results = backtest_results["signals_by_symbol"][symbol]
-                                        symbol_results["total"] += 1
-                                        symbol_results["signals"].append(signal_info)
-                                        
-                                        if signal["direction"] == "Yukarı":
-                                            symbol_results["buy_signals"] += 1
-                                        else:
-                                            symbol_results["sell_signals"] += 1
                                         
                                         # Birleştirilmiş sinyal mesajı
                                         if "combined_harfler" in signal:
@@ -2083,22 +2007,10 @@ class MAConfigApp(ctk.CTk):
             print(f"🎯 Toplam Sinyal: {backtest_results['total_signals']}")
             print()
             
-            # Zaman dilimi bazında özet
-            print("⏰ ZAMAN DİLİMİ BAZINDA SONUÇLAR:")
-            for tf, results in backtest_results["signals_by_timeframe"].items():
-                if results["total"] > 0:
-                    print(f"  {tf:>4}: {results['total']:>3} sinyal ({results['buy_signals']:>2} alış, {results['sell_signals']:>2} satış)")
-            
-            print()
-            
-            # En çok sinyal veren semboller
-            print("🏆 EN ÇOK SİNYAL VEREN SEMBOLLER:")
-            symbol_totals = [(symbol, data["total"]) for symbol, data in backtest_results["signals_by_symbol"].items()]
-            symbol_totals.sort(key=lambda x: x[1], reverse=True)
-            
-            for i, (symbol, total) in enumerate(symbol_totals[:10]):
-                if total > 0:
-                    print(f"  {i+1:>2}. {symbol}: {total} sinyal")
+            # Basit özet
+            print("✅ Backtest başarıyla tamamlandı!")
+            print(f"📊 Toplam {backtest_results['total_signals']} sinyal bulundu")
+            print(f"📁 Sonuçlar kaydedildi: {backtest_file}")
             
             print()
             print(f"💾 Detaylı sonuçlar: {backtest_file}")
@@ -2114,13 +2026,13 @@ class MAConfigApp(ctk.CTk):
             return None
 
     def analyze_backtest_results(self, results):
-        """Backtest sonuçlarını detaylı analiz et"""
+        """Backtest sonuçlarını basit analiz et"""
         if not results:
             print("❌ Analiz edilecek sonuç bulunamadı!")
             return
         
-        print("\n🔍 DETAYLI BACKTEST ANALİZİ")
-        print("=" * 80)
+        print("\n🔍 BACKTEST ANALİZİ")
+        print("=" * 50)
         
         # 1. Genel istatistikler
         total_signals = results["total_signals"]
@@ -2136,73 +2048,38 @@ class MAConfigApp(ctk.CTk):
         print(f"  📈 Günlük Ortalama: {total_signals / 15:.1f} sinyal")
         
         # 2. Sinyal türü analizi
-        buy_signals = [s for s in all_signals if s["direction"] == "Yukarı"]
-        sell_signals = [s for s in all_signals if s["direction"] == "Aşağı"]
+        buy_signals = [s for s in all_signals if s["signal_type"] == "alış"]
+        sell_signals = [s for s in all_signals if s["signal_type"] == "satış"]
         
         print(f"\n📈 SİNYAL TÜRÜ ANALİZİ:")
         print(f"  🟢 Alış Sinyalleri: {len(buy_signals)} (%{len(buy_signals)/total_signals*100:.1f})")
         print(f"  🔴 Satış Sinyalleri: {len(sell_signals)} (%{len(sell_signals)/total_signals*100:.1f})")
         
-        # 3. MA/EMA analizi
-        ma_signals = [s for s in all_signals if s["ma_type"] == "MA"]
-        ema_signals = [s for s in all_signals if s["ma_type"] == "EMA"]
-        
-        print(f"\n⚙️ MA/EMA ANALİZİ:")
-        print(f"  📊 MA Sinyalleri: {len(ma_signals)} (%{len(ma_signals)/total_signals*100:.1f})")
-        print(f"  📈 EMA Sinyalleri: {len(ema_signals)} (%{len(ema_signals)/total_signals*100:.1f})")
-        
-        # 4. Harf bazında analiz
-        harf_counts = {}
+        # 3. Zaman dilimi analizi
+        timeframe_counts = {}
         for signal in all_signals:
-            harf = signal["harf"]
-            if harf not in harf_counts:
-                harf_counts[harf] = {"total": 0, "buy": 0, "sell": 0}
-            harf_counts[harf]["total"] += 1
-            if signal["direction"] == "Yukarı":
-                harf_counts[harf]["buy"] += 1
-            else:
-                harf_counts[harf]["sell"] += 1
+            tf = signal["signal_timeframe"]
+            if tf not in timeframe_counts:
+                timeframe_counts[tf] = 0
+            timeframe_counts[tf] += 1
         
-        print(f"\n🔤 HARF BAZINDA ANALİZ:")
-        for harf, counts in sorted(harf_counts.items(), key=lambda x: x[1]["total"], reverse=True):
-            print(f"  {harf}: {counts['total']} sinyal ({counts['buy']} alış, {counts['sell']} satış)")
+        print(f"\n⏰ ZAMAN DİLİMİ ANALİZİ:")
+        for tf, count in sorted(timeframe_counts.items(), key=lambda x: x[1], reverse=True):
+            print(f"  {tf:>4}: {count:>3} sinyal (%{count/total_signals*100:.1f})")
         
-        # 5. Zaman dilimi analizi
-        print(f"\n⏰ ZAMAN DİLİMİ BAZINDA DETAYLI ANALİZ:")
-        for tf, tf_results in results["signals_by_timeframe"].items():
-            if tf_results["total"] > 0:
-                print(f"  {tf:>4}: {tf_results['total']:>3} sinyal")
-                print(f"        🟢 Alış: {tf_results['buy_signals']:>2} (%{tf_results['buy_signals']/tf_results['total']*100:.1f})")
-                print(f"        🔴 Satış: {tf_results['sell_signals']:>2} (%{tf_results['sell_signals']/tf_results['total']*100:.1f})")
+        # 4. Sembol analizi
+        symbol_counts = {}
+        for signal in all_signals:
+            symbol = signal["symbol"]
+            if symbol not in symbol_counts:
+                symbol_counts[symbol] = 0
+            symbol_counts[symbol] += 1
         
-        # 6. En aktif semboller
-        print(f"\n🏆 EN AKTİF SEMBOLLER (İlk 10):")
-        symbol_totals = [(symbol, data["total"]) for symbol, data in results["signals_by_symbol"].items()]
-        symbol_totals.sort(key=lambda x: x[1], reverse=True)
+        print(f"\n🏆 SEMBOL ANALİZİ:")
+        for symbol, count in sorted(symbol_counts.items(), key=lambda x: x[1], reverse=True):
+            print(f"  {symbol}: {count} sinyal (%{count/total_signals*100:.1f})")
         
-        for i, (symbol, total) in enumerate(symbol_totals[:10]):
-            symbol_data = results["signals_by_symbol"][symbol]
-            print(f"  {i+1:>2}. {symbol}: {total} sinyal")
-            print(f"        🟢 Alış: {symbol_data['buy_signals']:>2} (%{symbol_data['buy_signals']/total*100:.1f})")
-            print(f"        🔴 Satış: {symbol_data['sell_signals']:>2} (%{symbol_data['sell_signals']/total*100:.1f})")
-        
-        # 7. Tolerans analizi
-        tolerance_signals = [s for s in all_signals if s["tolerance"] > 0]
-        no_tolerance_signals = [s for s in all_signals if s["tolerance"] == 0]
-        
-        print(f"\n🎯 TOLERANS ANALİZİ:")
-        print(f"  📏 Toleranslı Sinyaller: {len(tolerance_signals)} (%{len(tolerance_signals)/total_signals*100:.1f})")
-        print(f"  📐 Toleranssız Sinyaller: {len(no_tolerance_signals)} (%{len(no_tolerance_signals)/total_signals*100:.1f})")
-        
-        # 8. Mum rengi analizi
-        green_candles = [s for s in all_signals if s["candle_color"] == "yeşil"]
-        red_candles = [s for s in all_signals if s["candle_color"] == "kırmızı"]
-        
-        print(f"\n🕯️ MUM RENGİ ANALİZİ:")
-        print(f"  🟢 Yeşil Mum: {len(green_candles)} (%{len(green_candles)/total_signals*100:.1f})")
-        print(f"  🔴 Kırmızı Mum: {len(red_candles)} (%{len(red_candles)/total_signals*100:.1f})")
-        
-        # 9. MA hesaplama zaman dilimi analizi
+        # 5. MA hesaplama zaman dilimi analizi
         ma_timeframe_counts = {}
         for signal in all_signals:
             ma_tf = signal.get("ma_calculation_timeframe", "bilinmiyor")
@@ -2210,21 +2087,11 @@ class MAConfigApp(ctk.CTk):
                 ma_timeframe_counts[ma_tf] = 0
             ma_timeframe_counts[ma_tf] += 1
         
-        print(f"\n⏱️ MA HESAPLAMA ZAMAN DİLİMİ ANALİZİ:")
+        print(f"\n⏱️ MA HESAPLAMA ZAMAN DİLİMİ:")
         for ma_tf, count in sorted(ma_timeframe_counts.items(), key=lambda x: x[1], reverse=True):
             print(f"  {ma_tf:>8}: {count:>3} sinyal (%{count/total_signals*100:.1f})")
         
-        # 10. Fiyat aralığı analizi
-        if all_signals:
-            prices = [s["price"] for s in all_signals]
-            min_price = min(prices)
-            max_price = max(prices)
-            avg_price = sum(prices) / len(prices)
-            
-            print(f"\n💰 FİYAT ANALİZİ:")
-            print(f"  📉 En Düşük Fiyat: {min_price:.5f}")
-            print(f"  📈 En Yüksek Fiyat: {max_price:.5f}")
-            print(f"  📊 Ortalama Fiyat: {avg_price:.5f}")
+        print("\n✅ Analiz tamamlandı!")
         
         print("=" * 80)
         print("✅ DETAYLI ANALİZ TAMAMLANDI!")

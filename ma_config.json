@@ -1,15 +1,15 @@
 [
     {
-        "tip": "MA",
-        "periyot": 10,
-        "ma_timeframe": "4h",
-        "harf": "A"
+        "tip": "EMA",
+        "periyot": 20,
+        "ma_timeframe": "günlük",
+        "harf": "B"
     },
     {
         "tip": "EMA",
         "periyot": 20,
         "ma_timeframe": "günlük",
-        "harf": "B"
+        "harf": "A"
     },
     {
         "tip": "MA",

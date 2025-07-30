@@ -24,7 +24,7 @@ class MAConfigGUI:
         self.ma_tab = self.notebook.add("MA/EMA Ayarları")
         self.symbols_tab = self.notebook.add("Sembol Yönetimi")
         self.synthetic_tab = self.notebook.add("Çarpım Grafikleri")
-        self.cancel_tab = self.notebook.add("Sinyal İptal")
+        self.cancel_tab = self.notebook.add("Sinyal İptal & Filtre")
         
         # GUI oluştur
         self.create_ma_config_tab()
@@ -215,20 +215,33 @@ class MAConfigGUI:
         self.cancel_scroll_frame = ctk.CTkScrollableFrame(self.cancel_tab, width=450, height=400)
         self.cancel_scroll_frame.pack(pady=5, fill="both", expand=True)
         
-        title_label = ctk.CTkLabel(self.cancel_scroll_frame, text="Sinyal İptal Ayarları", font=("Arial", 16, "bold"))
+        title_label = ctk.CTkLabel(self.cancel_scroll_frame, text="Sinyal İptal & Filtre Ayarları", font=("Arial", 16, "bold"))
         title_label.pack(pady=10)
         
-        desc_label = ctk.CTkLabel(self.cancel_scroll_frame, text="Fiyat belirli bir yüzde ilerlediğinde sinyal iptal edilir", font=("Arial", 12))
-        desc_label.pack(pady=5)
-        
+        # Sinyal İptal Bölümü
         cancel_frame = ctk.CTkFrame(self.cancel_scroll_frame)
         cancel_frame.pack(pady=10, fill="x", padx=10)
+        
+        ctk.CTkLabel(cancel_frame, text="🛑 Sinyal İptal Ayarları", font=("Arial", 14, "bold")).pack(pady=5)
+        ctk.CTkLabel(cancel_frame, text="Fiyat belirli bir yüzde ilerlediğinde sinyal iptal edilir", font=("Arial", 12)).pack(pady=5)
         
         ctk.CTkLabel(cancel_frame, text="Sinyal İptal Yüzdesi (%):").pack(pady=5)
         self.cancel_percentage_entry = ctk.CTkEntry(cancel_frame, placeholder_text="5.0", width=150)
         self.cancel_percentage_entry.pack(pady=5)
         
-        save_cancel_button = ctk.CTkButton(cancel_frame, text="💾 İptal Ayarlarını Kaydet", command=self.app.save_signal_cancel_config)
+        # Filtre Bölümü
+        filter_frame = ctk.CTkFrame(self.cancel_scroll_frame)
+        filter_frame.pack(pady=10, fill="x", padx=10)
+        
+        ctk.CTkLabel(filter_frame, text="🔍 Sinyal Filtre Ayarları", font=("Arial", 14, "bold")).pack(pady=5)
+        ctk.CTkLabel(filter_frame, text="MQL5 v5 algoritması için sinyal filtre periyodu", font=("Arial", 12)).pack(pady=5)
+        
+        ctk.CTkLabel(filter_frame, text="Filtre Periyodu (Mum Sayısı):").pack(pady=5)
+        self.filter_period_entry = ctk.CTkEntry(filter_frame, placeholder_text="5", width=150)
+        self.filter_period_entry.pack(pady=5)
+        
+        # Kaydet butonu
+        save_cancel_button = ctk.CTkButton(self.cancel_scroll_frame, text="💾 Tüm Ayarları Kaydet", command=self.app.save_signal_cancel_config)
         save_cancel_button.pack(pady=10)
 
     def create_right_panel(self):

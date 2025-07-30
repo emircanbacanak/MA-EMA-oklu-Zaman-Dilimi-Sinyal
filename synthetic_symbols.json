@@ -1,0 +1,8 @@
+{
+    "EURUSD_EURGBP_MULT": {
+        "symbol1": "EURUSD",
+        "symbol2": "EURGBP",
+        "operation": "*",
+        "formula": "EURUSD*EURGBP"
+    }
+}

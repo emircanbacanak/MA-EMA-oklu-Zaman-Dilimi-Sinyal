@@ -1,0 +1,152 @@
+[
+    {
+        "tip": "MA",
+        "periyot": 10,
+        "ma_timeframe": "4h",
+        "harf": "A"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 20,
+        "ma_timeframe": "günlük",
+        "harf": "B"
+    },
+    {
+        "tip": "MA",
+        "periyot": 30,
+        "ma_timeframe": "haftalık",
+        "harf": "C"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 40,
+        "ma_timeframe": "aylık",
+        "harf": "D"
+    },
+    {
+        "tip": "MA",
+        "periyot": 50,
+        "ma_timeframe": "4h",
+        "harf": "E"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 60,
+        "ma_timeframe": "günlük",
+        "harf": "F"
+    },
+    {
+        "tip": "MA",
+        "periyot": 70,
+        "ma_timeframe": "haftalık",
+        "harf": "G"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 80,
+        "ma_timeframe": "aylık",
+        "harf": "H"
+    },
+    {
+        "tip": "MA",
+        "periyot": 90,
+        "ma_timeframe": "4h",
+        "harf": "I"
+    },
+    {
+        "tip": "MA",
+        "periyot": 100,
+        "ma_timeframe": "günlük",
+        "harf": "J"
+    },
+    {
+        "tip": "MA",
+        "periyot": 110,
+        "ma_timeframe": "haftalık",
+        "harf": "K"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 120,
+        "ma_timeframe": "aylık",
+        "harf": "L"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 130,
+        "ma_timeframe": "4h",
+        "harf": "M"
+    },
+    {
+        "tip": "MA",
+        "periyot": 120,
+        "ma_timeframe": "günlük",
+        "harf": "N"
+    },
+    {
+        "tip": "MA",
+        "periyot": 150,
+        "ma_timeframe": "haftalık",
+        "harf": "O"
+    },
+    {
+        "tip": "MA",
+        "periyot": 160,
+        "ma_timeframe": "aylık",
+        "harf": "P"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 170,
+        "ma_timeframe": "4h",
+        "harf": "R"
+    },
+    {
+        "tip": "MA",
+        "periyot": 180,
+        "ma_timeframe": "günlük",
+        "harf": "S"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 190,
+        "ma_timeframe": "haftalık",
+        "harf": "T"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 200,
+        "ma_timeframe": "aylık",
+        "harf": "U"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 210,
+        "ma_timeframe": "4h",
+        "harf": "V"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 220,
+        "ma_timeframe": "günlük",
+        "harf": "Y"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 230,
+        "ma_timeframe": "haftalık",
+        "harf": "Z"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 240,
+        "ma_timeframe": "aylık",
+        "harf": "X"
+    },
+    {
+        "tip": "EMA",
+        "periyot": 250,
+        "ma_timeframe": "4h",
+        "harf": "Q"
+    }
+]

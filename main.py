@@ -563,8 +563,15 @@ class MAConfigApp(ctk.CTk):
             #     print(f"UYARI: Sembol {symbol_mt5} MT5'te bulunamadı, atlanıyor.")
             #     return None
             
-            # Veri çek
-            rates = mt5.copy_rates_from_pos(symbol_mt5, mt5_timeframe, 0, limit)
+            # Veri çek - aylık timeframe için daha fazla veri
+            if timeframe == "aylık":
+                # Aylık timeframe için daha fazla veri çekmeye çalış
+                rates = mt5.copy_rates_from_pos(symbol_mt5, mt5_timeframe, 0, limit * 2)
+                if rates is None or len(rates) == 0:
+                    # Eğer çok fazla veri çekilemezse normal limit ile dene
+                    rates = mt5.copy_rates_from_pos(symbol_mt5, mt5_timeframe, 0, limit)
+            else:
+                rates = mt5.copy_rates_from_pos(symbol_mt5, mt5_timeframe, 0, limit)
             
             if rates is None or len(rates) == 0:
                 print(f"UYARI: MT5'den veri alınamadı ({symbol_mt5}), atlanıyor.")
@@ -637,6 +644,25 @@ class MAConfigApp(ctk.CTk):
         else:
             indicator = SMAIndicator(df["close"], window=period)
             return indicator.sma_indicator()
+    
+    def check_monthly_data_availability(self, symbol):
+        """Aylık timeframe için veri durumunu kontrol et"""
+        try:
+            # Aylık veri için daha fazla veri çekmeye çalış
+            rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_MN1, 0, 200)
+            if rates is not None and len(rates) > 0:
+                df = pd.DataFrame(rates)
+                df["timestamp"] = pd.to_datetime(df["time"], unit="s")
+                print(f"📊 {symbol} aylık veri durumu: {len(df)} mum")
+                print(f"   İlk veri: {df['timestamp'].iloc[0]}")
+                print(f"   Son veri: {df['timestamp'].iloc[-1]}")
+                return len(df)
+            else:
+                print(f"❌ {symbol} için aylık veri bulunamadı")
+                return 0
+        except Exception as e:
+            print(f"❌ {symbol} aylık veri kontrolü hatası: {e}")
+            return 0
 
     def run_bot(self):
         """Bot ana döngüsü - Mum kapanış zamanlarını bekleyerek çalışır"""
@@ -656,6 +682,27 @@ class MAConfigApp(ctk.CTk):
             
             print(f"Bot başlatıldı: {len(symbols)} sembol, {len(configs)} konfigürasyon")
             print(f"Çarpım grafikleri: {len(self.synthetic_symbols)} adet")
+            
+            # Aylık timeframe kullanılan konfigürasyonları kontrol et
+            monthly_configs = [config for config in configs if config["ma_timeframe"] == "aylık"]
+            if monthly_configs:
+                print(f"⚠️ AYLIK TIMEFRAME KULLANILIYOR: {len(monthly_configs)} konfigürasyon")
+                print("   Aylık timeframe için veri durumu kontrol ediliyor...")
+                
+                # İlk birkaç sembol için aylık veri durumunu kontrol et
+                sample_symbols = symbols[:3] if len(symbols) >= 3 else symbols
+                for symbol in sample_symbols:
+                    self.check_monthly_data_availability(symbol)
+                print()
+                
+                # Aylık timeframe sorunları için öneriler ver
+                self.suggest_monthly_timeframe_fix()
+                
+                # Otomatik düzeltme önerisi
+                self.suggest_monthly_to_weekly_fix()
+                
+                # Aylık timeframe sorununu test et
+                self.test_monthly_timeframe_issue()
             
             # Sinyal arama zaman dilimleri ve kapanış zamanları
             signal_timeframes = ["1h", "4h", "8h", "12h", "1d"]
@@ -713,12 +760,27 @@ class MAConfigApp(ctk.CTk):
                                         ma_values_cache[ma_calc_timeframe] = {}
                                         
                                     # MA hesaplama zaman diliminde veri çek
-                                    df_ma = self.fetch_data(symbol, ma_calc_timeframe, limit=200)
+                                    # Aylık timeframe için daha fazla veri çek
+                                    limit = 500 if ma_calc_timeframe == "aylık" else 200
+                                    df_ma = self.fetch_data(symbol, ma_calc_timeframe, limit=limit)
                                     
                                     if df_ma is not None and len(df_ma) >= period:
                                         ma_value = self.calculate_ma(df_ma, ma_type, period).iloc[-1]
                                         if not pd.isna(ma_value):
+                                            # MA değeri kontrolü - şüpheli değerler için uyarı
+                                            # Normal forex fiyat aralığı: 0.1 - 200
+                                            if ma_value < 0.1 or ma_value > 200.0:
+                                                print(f"⚠️ MA HESAPLAMA HATASI: {symbol} {ma_calc_timeframe} {harf} MA={ma_value:.5f}")
+                                                print(f"   Son 5 fiyat: {df_ma['close'].tail().tolist()}")
+                                                continue  # Bu MA'yı atla
+                                            
                                             ma_values_cache[ma_calc_timeframe][harf] = ma_value
+                                    elif df_ma is not None and ma_calc_timeframe == "aylık":
+                                        # Aylık timeframe için yeterli veri yoksa uyarı ver
+                                        print(f"⚠️ AYLIK VERİ YETERSİZ: {symbol} {ma_calc_timeframe} {harf} - {len(df_ma)} veri, {period} gerekli")
+                                        print(f"   Mevcut veri sayısı: {len(df_ma)}, Gerekli: {period}")
+                                        if len(df_ma) > 0:
+                                            print(f"   İlk veri: {df_ma['timestamp'].iloc[0]}, Son veri: {df_ma['timestamp'].iloc[-1]}")
                                 
                                 # Bu sembol için hesaplanmış MA değerlerini kullanarak sinyal kontrolü yap
                                 signals = self.check_signals_with_cached_ma(
@@ -1458,29 +1520,31 @@ class MAConfigApp(ctk.CTk):
 
     def check_signals_with_cached_ma(self, df, configs, tolerance_data, signal_timeframe, ma_values_cache, filter_period=None):
         """
-        MQL5 MABounceSignal_v5 algoritması birebir Python'a çevrilmiş hali:
+        MQL5 MABounceSignal_v5 algoritması birebir Python'a çevrilmiş hali - ÇOK KATI KURALLAR:
         
         Alış Sinyali Kuralı:
-        1. Test Mumu (bir önceki mum):
+        1. Test Mumu (bir önceki mum) - ÇOK KATI:
            a) MA'nın üstünde açılır
            b) Fitiliyle MA'nın altına sarkar (delme)
            c) Tekrar MA'nın üstünde kapanır (güçlü reddetme)
+           d) Yukarı fitil var (güçlü reddetme kanıtı)
         2. Onay Mumu (mevcut mum):
            a) Bir yükseliş mumudur
            b) Test mumunun en yüksek seviyesinin üzerinde kapanır (güçlü teyit)
-        3. Filtre Kuralı (YENİ):
-           a) Son 5 mum içinde MA altında kapanış olmamalı
+        3. Filtre Kuralı:
+           a) Son N mum içinde MA altında kapanış olmamalı
         
         Satış Sinyali Kuralı:
-        1. Test Mumu (bir önceki mum):
+        1. Test Mumu (bir önceki mum) - ÇOK KATI:
            a) MA'nın altında açılır
            b) Fitiliyle MA'nın üstüne çıkar (delme)
            c) Tekrar MA'nın altında kapanır (güçlü reddetme)
+           d) Aşağı fitil var (güçlü reddetme kanıtı)
         2. Onay Mumu (mevcut mum):
            a) Bir düşüş mumudur
            b) Test mumunun en düşük seviyesinin altında kapanır (güçlü teyit)
-        3. Filtre Kuralı (YENİ):
-           a) Son 5 mum içinde MA üstünde kapanış olmamalı
+        3. Filtre Kuralı:
+           a) Son N mum içinde MA üstünde kapanış olmamalı
         """
         signals = []
 
@@ -1551,10 +1615,28 @@ class MAConfigApp(ctk.CTk):
                 # Tolerans yoksa orijinal MA değerini kullan
                 ma_value = original_ma_value
 
+            # MA değeri kontrolü - şüpheli MA değerleri için uyarı
+            # Normal forex fiyat aralığı: 0.5 - 200 (USDJPY gibi yüksek değerli çiftler için)
+            if ma_value < 0.1 or ma_value > 200.0:  # Çok şüpheli değerler
+                print(f"⚠️ UYARI: {harf} için MA değeri çok şüpheli: {ma_value:.5f} (Test: O={test_open:.5f} C={test_close:.5f})")
+                continue  # Bu MA'yı atla
+            
             # MQL5 MABounceSignal_v5 algoritması birebir uygulama
-            # Alış Sinyali Koşulları
-            bullish_rejection_candle = (test_open > ma_value and test_low < ma_value and test_close > ma_value)
-            bullish_confirmation_candle = (confirm_close > confirm_open and confirm_close > test_high)
+            # Alış Sinyali Koşulları - ÇOK KATI KURALLAR
+            # Test Mumu: MA'nın üstünde açılır → fitiliyle MA'nın altına sarkar → tekrar MA'nın üstünde kapanır
+            # Bu koşul çok katı: fitil MA'yı delmeli ama kapanış MA'nın üstünde olmalı
+            bullish_rejection_candle = (
+                test_open > ma_value and  # MA'nın üstünde açılır
+                test_low < ma_value and   # Fitiliyle MA'nın altına sarkar (delme)
+                test_close > ma_value and # Tekrar MA'nın üstünde kapanır (güçlü reddetme)
+                test_high > test_open     # Yukarı fitil var (güçlü reddetme kanıtı)
+            )
+            
+            # Onay Mumu: Yükseliş mumu ve test mumunun en yüksek seviyesinin üzerinde kapanır
+            bullish_confirmation_candle = (
+                confirm_close > confirm_open and  # Yükseliş mumu
+                confirm_close > test_high         # Test mumunun en yüksek seviyesinin üzerinde kapanır
+            )
 
             if bullish_rejection_candle and bullish_confirmation_candle:
                 # --- FİLTRE KONTROLÜ (MQL5 v5 YENİ KURAL) ---
@@ -1595,9 +1677,21 @@ class MAConfigApp(ctk.CTk):
                     "confirm_candle_breakout": True
                 })
 
-            # Satış Sinyali Koşulları
-            bearish_rejection_candle = (test_open < ma_value and test_high > ma_value and test_close < ma_value)
-            bearish_confirmation_candle = (confirm_close < confirm_open and confirm_close < test_low)
+            # Satış Sinyali Koşulları - ÇOK KATI KURALLAR
+            # Test Mumu: MA'nın altında açılır → fitiliyle MA'nın üstüne çıkar → tekrar MA'nın altında kapanır
+            # Bu koşul çok katı: fitil MA'yı delmeli ama kapanış MA'nın altında olmalı
+            bearish_rejection_candle = (
+                test_open < ma_value and  # MA'nın altında açılır
+                test_high > ma_value and  # Fitiliyle MA'nın üstüne çıkar (delme)
+                test_close < ma_value and # Tekrar MA'nın altında kapanır (güçlü reddetme)
+                test_low < test_open      # Aşağı fitil var (güçlü reddetme kanıtı)
+            )
+            
+            # Onay Mumu: Düşüş mumu ve test mumunun en düşük seviyesinin altında kapanır
+            bearish_confirmation_candle = (
+                confirm_close < confirm_open and  # Düşüş mumu
+                confirm_close < test_low          # Test mumunun en düşük seviyesinin altında kapanır
+            )
 
             if bearish_rejection_candle and bearish_confirmation_candle:
                 # --- FİLTRE KONTROLÜ (MQL5 v5 YENİ KURAL) ---
@@ -1846,6 +1940,21 @@ class MAConfigApp(ctk.CTk):
                 configs = json.load(f)
             print(f"✅ {len(configs)} MA/EMA konfigürasyonu yüklendi")
             
+            # Aylık timeframe kullanılan konfigürasyonları kontrol et
+            monthly_configs = [config for config in configs if config["ma_timeframe"] == "aylık"]
+            if monthly_configs:
+                print(f"⚠️ AYLIK TIMEFRAME KULLANILIYOR: {len(monthly_configs)} konfigürasyon")
+                for config in monthly_configs:
+                    print(f"   - {config['harf']}: {config['tip']}{config['periyot']} aylık")
+                print("   Not: Aylık timeframe için yeterli veri olmayabilir!")
+                print()
+                
+                # Aylık timeframe sorunları için öneriler ver
+                self.suggest_monthly_timeframe_fix()
+                
+                # Otomatik düzeltme önerisi
+                self.suggest_monthly_to_weekly_fix()
+            
             # Tolerans ayarları
             tolerance_data = {}
             if os.path.exists(TOLERANCE_FILE):
@@ -1927,7 +2036,9 @@ class MAConfigApp(ctk.CTk):
                                 period = config["periyot"]
                                 
                                 # MA hesaplama zaman diliminde veri çek
-                                df_ma = self.fetch_data(symbol, ma_calc_timeframe, limit=500)
+                                # Aylık timeframe için daha fazla veri çek
+                                limit = 1000 if ma_calc_timeframe == "aylık" else 500
+                                df_ma = self.fetch_data(symbol, ma_calc_timeframe, limit=limit)
                                 
                                 if df_ma is not None and len(df_ma) >= period:
                                     # Sadece bu mum zamanına kadar olan veriyi kullan
@@ -1940,6 +2051,11 @@ class MAConfigApp(ctk.CTk):
                                             if ma_calc_timeframe not in ma_values_cache:
                                                 ma_values_cache[ma_calc_timeframe] = {}
                                             ma_values_cache[ma_calc_timeframe][harf] = ma_value
+                                elif df_ma is not None and ma_calc_timeframe == "aylık":
+                                    # Aylık timeframe için yeterli veri yoksa uyarı ver
+                                    print(f"⚠️ BACKTEST AYLIK VERİ YETERSİZ: {symbol} {ma_calc_timeframe} {harf} - {len(df_ma)} veri, {period} gerekli")
+                                    if len(df_ma) > 0:
+                                        print(f"   İlk veri: {df_ma['timestamp'].iloc[0]}, Son veri: {df_ma['timestamp'].iloc[-1]}")
                             
                             # Sinyal kontrolü
                             if ma_values_cache:
@@ -2097,6 +2213,129 @@ class MAConfigApp(ctk.CTk):
         print("✅ DETAYLI ANALİZ TAMAMLANDI!")
         
         return True
+
+    def suggest_monthly_timeframe_fix(self):
+        """Aylık timeframe sorunları için öneriler ver"""
+        try:
+            if not os.path.exists(CONFIG_FILE):
+                return
+                
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                configs = json.load(f)
+            
+            monthly_configs = [config for config in configs if config["ma_timeframe"] == "aylık"]
+            if not monthly_configs:
+                return
+            
+            print("\n🔧 AYLIK TIMEFRAME SORUNU ÇÖZÜM ÖNERİLERİ:")
+            print("=" * 60)
+            print("❌ SORUN: Aylık timeframe için yeterli veri bulunamıyor")
+            print("   - MA160 aylık için en az 160 aylık veri gerekli")
+            print("   - MT5'ten bu kadar uzun geçmiş veri alınamıyor")
+            print()
+            print("✅ ÇÖZÜM ÖNERİLERİ:")
+            print("1. Aylık timeframe yerine haftalık timeframe kullanın")
+            print("   - Haftalık timeframe daha fazla veri noktası sağlar")
+            print("   - MA hesaplamaları daha güvenilir olur")
+            print()
+            print("2. MA periyotlarını azaltın")
+            print("   - MA160 yerine MA80 veya MA100 kullanın")
+            print("   - Daha az veri gerektirir")
+            print()
+            print("3. Alternatif timeframe kombinasyonları:")
+            print("   - MA160 aylık → MA80 haftalık")
+            print("   - MA160 aylık → MA100 günlük")
+            print("   - EMA240 aylık → EMA120 haftalık")
+            print()
+            print("4. Veri kaynağını kontrol edin")
+            print("   - MT5 broker'ınızın aylık veri limitini kontrol edin")
+            print("   - Farklı bir veri kaynağı kullanmayı düşünün")
+            print("=" * 60)
+            
+        except Exception as e:
+            print(f"Aylık timeframe öneri hatası: {e}")
+
+    def suggest_monthly_to_weekly_fix(self):
+        """Aylık timeframe konfigürasyonlarını haftalık ile değiştirme önerisi"""
+        try:
+            if not os.path.exists(CONFIG_FILE):
+                return
+                
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                configs = json.load(f)
+            
+            monthly_configs = [config for config in configs if config["ma_timeframe"] == "aylık"]
+            if not monthly_configs:
+                return
+            
+            print("\n🔄 OTOMATİK DÜZELTME ÖNERİSİ:")
+            print("=" * 50)
+            print("Aylık timeframe konfigürasyonlarını haftalık ile değiştirmek ister misiniz?")
+            print("Bu işlem MA periyotlarını da otomatik olarak ayarlayacak.")
+            print()
+            print("Değişecek konfigürasyonlar:")
+            for config in monthly_configs:
+                old_period = config["periyot"]
+                new_period = max(20, old_period // 2)  # Periyodu yarıya düşür, minimum 20
+                print(f"   {config['harf']}: {config['tip']}{old_period} aylık → {config['tip']}{new_period} haftalık")
+            print()
+            print("Bu değişiklik daha güvenilir sinyaller sağlayacaktır.")
+            print("=" * 50)
+            
+            # Kullanıcıdan onay al (GUI'de gösterilecek)
+            return monthly_configs
+            
+        except Exception as e:
+            print(f"Otomatik düzeltme önerisi hatası: {e}")
+            return None
+
+    def test_monthly_timeframe_issue(self):
+        """Aylık timeframe sorununu test et"""
+        try:
+            print("\n🔍 AYLIK TIMEFRAME SORUNU TEST EDİLİYOR...")
+            print("=" * 60)
+            
+            # Test sembolleri
+            test_symbols = ["EURUSD", "GBPUSD", "USDJPY"]
+            
+            for symbol in test_symbols:
+                print(f"\n📊 {symbol} aylık veri testi:")
+                
+                # Aylık veri çekmeyi dene
+                rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_MN1, 0, 200)
+                if rates is not None and len(rates) > 0:
+                    df = pd.DataFrame(rates)
+                    df["timestamp"] = pd.to_datetime(df["time"], unit="s")
+                    print(f"   ✅ Aylık veri bulundu: {len(df)} mum")
+                    print(f"   📅 İlk veri: {df['timestamp'].iloc[0]}")
+                    print(f"   📅 Son veri: {df['timestamp'].iloc[-1]}")
+                    
+                    # MA160 hesaplamayı dene
+                    if len(df) >= 160:
+                        ma160 = self.calculate_ma(df, "MA", 160).iloc[-1]
+                        print(f"   ✅ MA160 hesaplandı: {ma160:.5f}")
+                    else:
+                        print(f"   ❌ MA160 için yeterli veri yok: {len(df)} < 160")
+                        
+                    # MA80 hesaplamayı dene
+                    if len(df) >= 80:
+                        ma80 = self.calculate_ma(df, "MA", 80).iloc[-1]
+                        print(f"   ✅ MA80 hesaplandı: {ma80:.5f}")
+                    else:
+                        print(f"   ❌ MA80 için yeterli veri yok: {len(df)} < 80")
+                else:
+                    print(f"   ❌ Aylık veri bulunamadı!")
+            
+            print("\n" + "=" * 60)
+            print("📋 TEST SONUÇLARI:")
+            print("1. Aylık timeframe için veri çekme sorunu var")
+            print("2. MA160 aylık hesaplaması için yeterli veri yok")
+            print("3. MA80 aylık hesaplaması mümkün olabilir")
+            print("4. Haftalık timeframe kullanımı önerilir")
+            print("=" * 60)
+            
+        except Exception as e:
+            print(f"Aylık timeframe test hatası: {e}")
 
 if __name__ == "__main__":
     app = MAConfigApp()

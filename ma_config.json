@@ -7,7 +7,7 @@
     },
     {
         "tip": "EMA",
-        "periyot": 20,
+        "periyot": 10,
         "ma_timeframe": "günlük",
         "harf": "A"
     },
@@ -19,7 +19,7 @@
     },
     {
         "tip": "EMA",
-        "periyot": 40,
+        "periyot": 10,
         "ma_timeframe": "aylık",
         "harf": "D"
     },
@@ -43,7 +43,7 @@
     },
     {
         "tip": "EMA",
-        "periyot": 80,
+        "periyot": 20,
         "ma_timeframe": "aylık",
         "harf": "H"
     },
@@ -61,13 +61,13 @@
     },
     {
         "tip": "MA",
-        "periyot": 110,
+        "periyot": 20,
         "ma_timeframe": "haftalık",
         "harf": "K"
     },
     {
         "tip": "EMA",
-        "periyot": 120,
+        "periyot": 15,
         "ma_timeframe": "aylık",
         "harf": "L"
     },
@@ -85,13 +85,13 @@
     },
     {
         "tip": "MA",
-        "periyot": 150,
+        "periyot": 10,
         "ma_timeframe": "haftalık",
         "harf": "O"
     },
     {
         "tip": "MA",
-        "periyot": 160,
+        "periyot": 10,
         "ma_timeframe": "aylık",
         "harf": "P"
     },
@@ -109,43 +109,43 @@
     },
     {
         "tip": "EMA",
-        "periyot": 190,
+        "periyot": 15,
         "ma_timeframe": "haftalık",
         "harf": "T"
     },
     {
         "tip": "EMA",
-        "periyot": 200,
+        "periyot": 5,
         "ma_timeframe": "aylık",
         "harf": "U"
     },
     {
         "tip": "EMA",
-        "periyot": 210,
+        "periyot": 55,
         "ma_timeframe": "4h",
         "harf": "V"
     },
     {
         "tip": "EMA",
-        "periyot": 220,
+        "periyot": 45,
         "ma_timeframe": "günlük",
         "harf": "Y"
     },
     {
         "tip": "EMA",
-        "periyot": 230,
+        "periyot": 25,
         "ma_timeframe": "haftalık",
         "harf": "Z"
     },
     {
         "tip": "EMA",
-        "periyot": 240,
+        "periyot": 1,
         "ma_timeframe": "aylık",
         "harf": "X"
     },
     {
         "tip": "EMA",
-        "periyot": 250,
+        "periyot": 35,
         "ma_timeframe": "4h",
         "harf": "Q"
     }
